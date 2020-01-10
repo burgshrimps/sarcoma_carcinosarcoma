@@ -1,7 +1,9 @@
 import pandas as pd
 import numpy as np 
 import matplotlib.pyplot as plt
-from lifelines import KaplanMeierFitter
+#from lifelines import KaplanMeierFitter
+from sklearn.linear_model import LinearRegression
+import seaborn as sns
 
 
 plt.style.use('ggplot')
@@ -31,6 +33,59 @@ def plot_box(df, feature, ylabel):
     plt.ylabel(ylabel)
     plt.show()
 
+def adjacent_values(vals, q1, q3):
+    upper_adjacent_value = q3 + (q3 - q1) * 1.5
+    upper_adjacent_value = np.clip(upper_adjacent_value, q3, vals[-1])
+
+    lower_adjacent_value = q1 - (q3 - q1) * 1.5
+    lower_adjacent_value = np.clip(lower_adjacent_value, vals[0], q1)
+    return lower_adjacent_value, upper_adjacent_value
+
+def plot_violin(df, feature, ylabel):
+    carc = df[feature][(df.carcinosarcoma == 1)]
+    sar = df[feature][(df.carcinosarcoma == 0)]
+    data = [np.array(sorted(carc.dropna())), np.array(sorted(sar.dropna()))]
+    parts = plt.violinplot(data, positions=[1,2], showextrema=False)
+
+    for pc in parts['bodies']:
+        pc.set_edgecolor('black')
+    
+    quartile1, medians, quartile3 = zip(np.percentile(data[0], [25, 50, 75]), np.percentile(data[1], [25, 50, 75]))
+    whiskers = np.array([adjacent_values(sorted_array, q1, q3) for sorted_array, q1, q3 in zip(data, quartile1, quartile3)])
+    whiskersMin, whiskersMax = whiskers[:, 0], whiskers[:, 1]
+    inds = np.arange(1, len(medians) + 1)
+    plt.scatter(inds, medians, marker='o', color='white', s=30, zorder=3)
+    plt.vlines(inds, quartile1, quartile3, color='k', linestyle='-', lw=5)
+    plt.vlines(inds, whiskersMin, whiskersMax, color='k', linestyle='-', lw=1)
+    
+    plt.xticks([1,2], ['Karzinosarkom', 'Sarkom'])
+    plt.ylabel(ylabel)
+    plt.show()
+
+def plot_violin_figo(df, feature, ylabel):
+    figo_i = df[feature][(df.figo == 1)]
+    figo_ii = df[feature][(df.figo == 2)]
+    figo_iii = df[feature][(df.figo == 3)]
+    figo_iv = df[feature][(df.figo == 4)]
+    data = [np.array(sorted(figo_i.dropna())), np.array(sorted(figo_ii.dropna())), np.array(sorted(figo_iii.dropna())), np.array(sorted(figo_iv.dropna()))]
+    parts = plt.violinplot(data, positions=[1, 2, 3, 4], showextrema=False)
+
+    for pc in parts['bodies']:
+        pc.set_edgecolor('black')
+    
+    quartile1, medians, quartile3 = zip(np.percentile(data[0], [25, 50, 75]), np.percentile(data[1], [25, 50, 75]), np.percentile(data[2], [25, 50, 75]), np.percentile(data[3], [25, 50, 75]))
+    whiskers = np.array([adjacent_values(sorted_array, q1, q3) for sorted_array, q1, q3 in zip(data, quartile1, quartile3)])
+    whiskersMin, whiskersMax = whiskers[:, 0], whiskers[:, 1]
+    inds = np.arange(1, len(medians) + 1)
+    plt.scatter(inds, medians, marker='o', color='white', s=30, zorder=3)
+    plt.vlines(inds, quartile1, quartile3, color='k', linestyle='-', lw=5)
+    plt.vlines(inds, whiskersMin, whiskersMax, color='k', linestyle='-', lw=1)
+    
+    plt.xticks([1, 2, 3, 4], ['I', 'II', 'III', 'IV'])
+    plt.ylabel(ylabel)
+    plt.xlabel('FIGO')
+    plt.show()
+
 def count_cat_feature(df, feature, cat, cat_val):
     return [len(df[feature][(df[cat] == cat_val) & (df[feature] == 0)]), len(df[feature][(df[cat] == cat_val) & (df[feature] == 1)])]
 
@@ -44,6 +99,34 @@ def plot_bar_bin(df, feature, ylabel, title):
     plt.xticks([0,1], ['Karzinosarkom', 'Sarkom'])
     plt.ylabel(ylabel)
     plt.title(title)
+    plt.legend()
+    plt.show()
+
+def plot_reg(df, f1, f2, xlabel, ylabel):
+    carc_x = df[f1][(df[f1].notna()) & (df[f2].notna()) & (df.carcinosarcoma == 1)]
+    carc_y = df[f2][(df[f1].notna()) & (df[f2].notna()) & (df.carcinosarcoma == 1)]
+    sar_x = df[f1][(df[f1].notna()) & (df[f2].notna()) & (df.carcinosarcoma == 0)]
+    sar_y = df[f2][(df[f1].notna()) & (df[f2].notna()) & (df.carcinosarcoma == 0)]
+
+    sns.regplot(x=carc_x, y=carc_y, label='Karzinosarkom', marker='+')
+    sns.regplot(x=sar_x, y=sar_y, label='Sarkom', marker='+')
+    
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend()
+    plt.show()
+
+def plot_scatter(df, f1, f2, xlabel, ylabel):
+    carc_x = df[f1][(df[f1].notna()) & (df[f2].notna()) & (df.carcinosarcoma == 1)]
+    carc_y = df[f2][(df[f1].notna()) & (df[f2].notna()) & (df.carcinosarcoma == 1)]
+    sar_x = df[f1][(df[f1].notna()) & (df[f2].notna()) & (df.carcinosarcoma == 0)]
+    sar_y = df[f2][(df[f1].notna()) & (df[f2].notna()) & (df.carcinosarcoma == 0)]
+
+    plt.scatter(x=carc_x, y=carc_y, label='Karzinosarkom', marker='+')
+    plt.scatter(x=sar_x, y=sar_y, label='Sarkom', marker='+')
+
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
     plt.legend()
     plt.show()
     
@@ -69,6 +152,11 @@ df.date_diagnosis = pd.to_datetime(df.date_diagnosis, dayfirst=True)
 df.date_recurrence = pd.to_datetime(df.date_recurrence, dayfirst=True)
 df.date_death[df.index[df.date_death == 'verstorben']] = np.nan
 df.date_death = pd.to_datetime(df.date_death, dayfirst=True)
+
+
+# Clean data: recurrance
+df['duration_recurrance'] = 12 * (df.date_recurrence.dt.year - df.date_diagnosis.dt.year) + (df.date_recurrence.dt.month - df.date_diagnosis.dt.month)
+df.duration_recurrance[64] = np.nan # error in recurrance date, difference = - 100 years
 
 
 # Clean data: follow up
@@ -133,7 +221,7 @@ df['carcinosarcoma'][kar_ovar] = 1
 
 
 # Analysis: Kaplan-Meier_Curve
-do_kmf = True
+do_kmf = False
 if do_kmf:
     kar_uterus = (df.tumor_type == 'Karzinosarkom Uterus')
     kar_ovar = (df.tumor_type == 'Karzinosarkom Ovar')
@@ -155,7 +243,7 @@ if do_kmf:
 do_age_diagnosis = False
 if do_age_diagnosis:
     plot_hist(df, 'age_diagnosis', 'Alter bei Diagnose', 'Anzahl Patienten')
-    plot_box(df, 'age_diagnosis', 'Alter bei Diagnose')
+    plot_violin(df, 'age_diagnosis', 'Alter bei Diagnose')
     print('Median Age', np.median(df.age_diagnosis.dropna()))
 
 
@@ -163,7 +251,7 @@ if do_age_diagnosis:
 do_bmi = False
 if do_bmi:
     plot_hist(df, 'bmi', 'BMI', 'Anzahl Patienten')
-    plot_box(df, 'bmi', 'BMI')
+    plot_violin(df, 'bmi', 'BMI')
     print('Median BMI', np.median(df.bmi.dropna()))
 
 
@@ -187,36 +275,21 @@ if do_para:
     xticklabels = np.array_str(np.arange(9))[1:-1].split(' ')
     plt.xticks(np.arange(9)+0.5, xticklabels)
     plt.show()
-    plot_box(df, 'para', 'Parität')
+    plot_violin(df, 'para', 'Parität')
 
 
 # Analysis: FIGO and Age
 do_age_figo = False
 if do_age_figo:
-    age_figo_i = df.age_diagnosis[(df.figo == 1)]
-    age_figo_ii = df.age_diagnosis[(df.figo == 2)]
-    age_figo_iii = df.age_diagnosis[(df.figo == 3)]
-    age_figo_iv = df.age_diagnosis[(df.figo == 4)]
-    plt.boxplot([age_figo_i.dropna(), age_figo_ii.dropna(), age_figo_iii.dropna(), age_figo_iv.dropna()], notch=False)
-    plt.xticks([1,2,3,4], ['I', 'II', 'III', 'IV'])
-    plt.ylabel('Alter bei Diagnose')
-    plt.xlabel('FIGO')
-    plt.show()
+    plot_violin_figo(df, 'age_diagnosis', 'Alter bei Diagnose')
 
 
 # Analysis: FIGO and BMI
 do_bmi_figo = False
 if do_bmi_figo:
-    bmi_figo_i = df.bmi[(df.figo == 1)]
-    bmi_figo_ii = df.bmi[(df.figo == 2)]
-    bmi_figo_iii = df.bmi[(df.figo == 3)]
-    bmi_figo_iv = df.bmi[(df.figo == 4)]
-    plt.boxplot([bmi_figo_i.dropna(), bmi_figo_ii.dropna(), bmi_figo_iii.dropna(), bmi_figo_iv.dropna()], notch=False)
-    plt.xticks([1,2,3,4], ['I', 'II', 'III', 'IV'])
-    plt.ylabel('BMI')
-    plt.xlabel('FIGO')
-    plt.show()
+    plot_violin_figo(df, 'bmi', 'BMI')
 
+# Analysis: FIGO and Uterus Myomatosus
 do_um_figo = False
 if do_um_figo:
     um_figo_i = count_cat_feature(df, 'uterus_myomatosus', 'figo', 1)
@@ -233,3 +306,17 @@ if do_um_figo:
     plt.title('Uterus Myomatosus')
     plt.legend()
     plt.show()
+
+# Analysis: Recurrance
+do_recc = False
+if do_recc:
+    plot_hist(df, 'duration_recurrance', 'Dauer bis rezidiv [Monate]', 'Anzahl Patienten')
+    plot_violin(df, 'duration_recurrance', 'Dauer bis rezidiv [Monate]')
+
+do_age_recc = True
+if do_age_recc:
+    plot_reg(df, 'age_diagnosis', 'duration_recurrance', 'Alter bei Diagnose', 'Dauer bis rezidiv [Monate]')
+
+do_bmi_recc = True
+if do_bmi_recc:
+    plot_reg(df, 'bmi', 'duration_recurrance', 'BMI', 'Dauer bis rezidiv [Monate]')
