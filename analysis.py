@@ -18,6 +18,30 @@ def kaplan_meier(kmf, df, tumor_type, label):
     kmf.plot(show_censors=True, ci_show=False, censor_styles={'marker' : '|'})
     print(label, kmf.median_survival_time_, len(T))
 
+def calc_rec_rate_bin(df, cat):
+    r0 = sum(df.rec_bool[df[cat] == 0]) / len(df.rec_bool[df[cat] == 0])
+    r1 = sum(df.rec_bool[df[cat] == 1]) / len(df.rec_bool[df[cat] == 1])
+    return np.array([r0, r1])
+
+def calc_rec_rate(df, cat, vals):
+    rec_rates = []
+    for i in range(len(vals)-1):
+        idx = (df[cat] >= vals[i]) & (df[cat] < vals[i+1])
+        if len(df.rec_bool[idx]) > 0:
+            rec_rates.append(sum(df.rec_bool[idx]) / len(df.rec_bool[idx]))
+        else:
+            rec_rates.append(0)
+    return np.array(rec_rates)
+
+def plot_bar_rec(df, rec_rates, xticklabels, xlabel):
+    x = np.arange(0, len(rec_rates))
+    plt.bar(x, rec_rates*100, alpha=0.8)
+    plt.xticks(x, xticklabels)
+    plt.ylabel('Rezidivrate [%]')
+    plt.xlabel(xlabel)
+    plt.ylim((0,100))
+    plt.show()
+
 def plot_hist(df, feature, xlabel, ylabel):
     plt.hist(df[feature].dropna(), alpha=0.8, edgecolor='white')
     plt.axvline(np.median(df[feature].dropna()), color='k', linestyle='dashed', linewidth=1)
@@ -129,6 +153,8 @@ def plot_scatter(df, f1, f2, xlabel, ylabel):
     plt.ylabel(ylabel)
     plt.legend()
     plt.show()
+
+
     
 
 
@@ -156,6 +182,7 @@ df.date_death = pd.to_datetime(df.date_death, dayfirst=True)
 # Clean data: recurrance
 df['duration_recurrance'] = 12 * (df.date_recurrence.dt.year - df.date_diagnosis.dt.year) + (df.date_recurrence.dt.month - df.date_diagnosis.dt.month)
 df.duration_recurrance[64] = np.nan # error in recurrance date, difference = - 100 years
+df['rec_bool'] = df.date_recurrence.notnull().map(lambda x: int(x))
 
 
 # Clean data: follow up
@@ -310,7 +337,7 @@ if do_para:
     plot_violin(df, 'para', 'carcinosarcoma', 'Parität', ['Karzinosarkom', 'Sarkom'])
 
 # Analysis: Size Primarius
-do_primarius = True
+do_primarius = False
 if do_primarius:
     plot_hist(df, 'size_primarius', 'Größe Primarius [cm]', 'Anzahl Patienten')
     plot_violin(df, 'size_primarius', 'carcinosarcoma', 'Größe Primarius [cm]', ['Karzinosarkom', 'Sarkom'])
@@ -380,6 +407,67 @@ do_primarius_recc = False
 if do_primarius_recc:
     plot_reg(df, 'size_primarius', 'duration_recurrance', 'Größe Primarius [cm]', 'Dauer bis rezidiv [Monate]')
 
+do_rec_rate = False
+if do_rec_rate:
+    rec_rates = calc_rec_rate_bin(df, 'carcinosarcoma')
+    plot_bar_rec(df, rec_rates, ['Sarkom', 'Karzinosarkom'], '')
+
+do_rec_rate_hypertension = False
+if do_rec_rate_hypertension:
+    rec_rates = calc_rec_rate_bin(df, 'hypertension')
+    plot_bar_rec(df, rec_rates, ['Nein', 'Ja'], 'Hypertonie')
+
+do_rec_rate_diabetes = False
+if do_rec_rate_diabetes:
+    rec_rates = calc_rec_rate_bin(df, 'diabetes')
+    plot_bar_rec(df, rec_rates, ['Nein', 'Ja'], 'Diabetes')
+
+do_rec_rate_hypercholesterolemia = False
+if do_rec_rate_hypercholesterolemia:
+    rec_rates = calc_rec_rate_bin(df, 'hypercholesterolemia')
+    plot_bar_rec(df, rec_rates, ['Nein', 'Ja'], 'Hypercholesterinämie')
+
+do_rec_rate_age = False
+if do_rec_rate_age:
+    step = 5
+    vals = np.arange(0,100,step)
+    labels = [str(v) for v in vals[:-1] + step/2]
+    rec_rates = calc_rec_rate(df, 'age_diagnosis', vals)
+    plot_bar_rec(df, rec_rates, labels, 'Alter bei Diagnose')
+
+do_rec_rate_bmi = False
+if do_rec_rate_bmi:
+    step = 5
+    vals = np.arange(0,50,step)
+    labels = [str(v) for v in vals[:-1] + step/2]
+    rec_rates = calc_rec_rate(df, 'bmi', vals)
+    plot_bar_rec(df, rec_rates, labels, 'BMI')
+
+do_rec_rate_primarius = False
+if do_rec_rate_primarius:
+    vals = np.arange(0,50,2.5)
+    labels = [str(v) for v in vals[:-1] + 1.25]
+    rec_rates = calc_rec_rate(df, 'bmi', vals)
+    plot_bar_rec(df, rec_rates, labels, 'Größe Primarius [cm]')
+
+do_rec_rate_figo = False
+if do_rec_rate_figo:
+    r1 = sum(df.rec_bool[df['figo'] == 1]) / len(df.rec_bool[df['figo'] == 1])
+    r2 = sum(df.rec_bool[df['figo'] == 2]) / len(df.rec_bool[df['figo'] == 2])
+    r3 = sum(df.rec_bool[df['figo'] == 3]) / len(df.rec_bool[df['figo'] == 3])
+    r4 = sum(df.rec_bool[df['figo'] == 4]) / len(df.rec_bool[df['figo'] == 4])
+    plot_bar_rec(df, np.array([r1, r2, r3, r4]), ['I', 'II', 'III', 'IV'], 'FIGO')
+
+corr = df[['age_diagnosis', 'rec_bool', 'bmi', 'hypertension', 'diabetes', 'hypercholesterolemia', 
+           'uterus_myomatosus', 'carcinosarcoma', 'hrt_contraceptive', 'gravida', 'para', 'endometriosis', 'figo', 'T', 'N', 'M', 'G', 'R', 'V', 
+           'L', 'size_primarius']].corr()
+ticklabels = ['Alter', 'Rezidiv', 'BMI', 'Hypertonie', 'Diabetes', 'Hypercholesterinämie', 
+              'Uterus Myomatosus', 'Tumortyp', 'Kontrazeption', 'Gravida', 'Parität', 'Endometriose', 'FIGO', 'T', 'N', 'M', 'G', 'R', 'V', 
+              'L', 'Größe Primarius']
+sns.heatmap(corr, xticklabels=ticklabels, yticklabels=ticklabels, cmap='coolwarm', vmin=-1, vmax=1)
+plt.tight_layout()
+plt.show()
+
 
 #print(df.age_diagnosis.median())
 """
@@ -393,6 +481,3 @@ cph.fit(df_cph[['duration', 'death_observed', 'age_diagnosis', 'bmi']], duration
 print(cph.summary)
 """
 
-#print(df[['duration_recurrance', 'hypertension']].corr())
-
-#print(df['size_primarius'].value_counts())
